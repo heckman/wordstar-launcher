@@ -92,6 +92,7 @@ help(){
 
 "
 }
+
 main(){
 	while [[ "${1:0:1}" == '-' ]]
 	do
@@ -129,26 +130,33 @@ main(){
 
 	"$DOSBOX_X" "${DOSBOX_ARGUMENTS[@]}" 2>$DEBUG_DESTINATION
 }
+
 version(){
 	/usr/bin/awk '/^#!/{next}/^#/{sub("^# *","");print;next}{exit}' "$0"
 }
+
 die(){
 	echo "$1">&2
 	exit 1
 }
+
 add_document_root_if_missing(){
 	strip_document_root | add_document_root
 }
+
 strip_document_root(){
 	/usr/bin/perl -0pe 's:^\Q'"${DOC_ROOT%/}"'/\E::mg'
 }
+
 add_document_root(){
 	echo "${DOC_ROOT%/}/$(cat -)"
 }
+
 reverse_slashes(){
 	# shellcheck disable=SC1003   # not trying to escape the single quote
 	tr '/' '\'
 }
+
 add_ws_extenstion_if_missing(){ local file_path
 	file_path="$(cat -)"
 	# check if the file exists, or if it exists when appending .WS extension
@@ -163,4 +171,5 @@ add_ws_extenstion_if_missing(){ local file_path
 	$OPT_CREATE_PATH && mkdir -p "$(dirname "$file_path")"
 	echo "${file_path%.[Ww][Ss]}.WS" # new document with WS extension
 }
+
 main "$@"
