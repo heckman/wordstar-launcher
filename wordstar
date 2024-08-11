@@ -1,1 +1,166 @@
-wordstar-0.3
+#!/bin/bash
+# wordstar, version 0.3
+# copyright 2024 Erik Ben Heckman <erik@heckman.ca>
+# shared under the terms of the MIT license
+
+
+# wordstar: Launch WordStar in an emulated DOS environment on MacOS
+
+
+
+
+# don't use '~' in these paths, as it won't necessarily be escaped
+DOC_ROOT="$HOME/Documents/WordStar/"
+C_DRIVE="$HOME/Applications/WordStar/DOS root/"
+CONFIG="$HOME/Applications/WordStar/dosbox-x.conf"
+DOSBOX_X="/Applications/dosbox-x.app/Contents/MacOS/dosbox-x"
+
+# it doesn't matter what drive letter is used here.
+DOC_DRIVE="D:"
+
+# dos commands that are run in lieu of `autoexec.bat`
+AUTOEXEC="@echo off
+mount -q C: \"${C_DRIVE%/}\"
+mount -q ${DOC_DRIVE%:}: ${DOC_ROOT%/}
+${DOC_DRIVE%:}:
+"
+
+# these settings are relative the config file provided
+# at /WS/DOSBox-X/dosbox-x.conf
+# in Robert J. Sawyer's WordStar 7 Archive
+# downloaded from https://sfwriter.com/ws7.htm
+DOSBOX_ARGUMENTS=(
+	-conf "$CONFIG"
+	-c "$AUTOEXEC"
+	-fastlaunch
+	-noautoexec
+	-set 'sdl fullscreen=false'
+	-set 'ttf font=dejavusansmono'
+	-set 'ttf fontbold=dejavusansmono-bold'
+	-set 'ttf fontital=dejavusansmono-oblique'
+	-set 'ttf fontboit=dejavusansmono-boldoblique'
+	-set 'ttf ptsize=30'
+	-set 'ttf lins=30'
+	-set 'ttf cols=96'
+)
+
+# default options, can be overridden by command line options
+OPT_MODE=WS
+OPT_FULLSCREEN=false
+OPT_CREATE_PATH=false
+DEBUG_DESTINATION=/dev/null
+
+help(){
+	echo "USAGE: wordstar [OPTIONS] [--] [DOCUMENT]
+
+    Launches WordStar in an emulated DOS environment.
+
+    OPTIONS THAT IGNORE ALL OTHER OPTIONS:
+        -V, -version  Print version and copyright message and exit.
+        -h, -help     Print this helpful message and exit.
+
+	OPTIONS THAT SET WHAT TO LAUNCH IN THE EMULATOR:
+	    -4, -WS4          Launch WordStar with \"Help Level 4\" (default).
+        -3, -WS3          Launch WordStar with \"Help Level 3\".
+        -2, -WS2          Launch WordStar with \"Help Level 2\".
+        -b, -base         Launch WordStar with an unmodified out-of-the-box
+                          version of WordStar.
+        -s, -sawyer       Launch WordStar with Robert J. Sawyer's preferred
+                          layout and extensive cutomizations.
+        -d, -dos, -shell  Don't launch WordStar, just launch DOSBox-X.
+                          This is useful for testing etc.
+
+	OPTIONS THAT TWEAK BEHAVIOUR:
+        -v, -verbose     Be verbose: output dosbox-x debug messages
+        -f, -fullscreen  Start the emulation in full-screen mode
+        -w, -window      Start the emulation in windowed mode (default)
+        -p, -path        If creating a new document, create its parent
+                         directories as required.
+
+    Each option must be specified in its own argument.
+    The long options can also be specified with two dashes.
+	If multile launch-options are specified onlt the last one will be used.
+
+    -- is required if DOCUMENT begins with a -.
+
+    DOCUMENT is relative to the ${DOC_DRIVE%:}: drive mount, unless it begins with a /
+    and points to a path that resides within the ${DOC_DRIVE%:}: drive mount.
+
+    If DOCUMENT doesn't exist, a new document will be opened in WordStar,
+    with the document's name appended with .WS if it doesn't already have
+    that extension.
+
+"
+}
+main(){
+	while [[ "${1:0:1}" == '-' ]]
+	do
+		case "$1" in
+		-h|-help|--help) help; exit;;
+		-V|-version|--version) version; exit;;
+		-v|-verbose|--verbose) shift;        DEBUG_DESTINATION=/dev/stderr;;
+		-w|-window|--window) shift;          OPT_FULLSCREEN=false;;
+		-f|-fullscreen|--fullscreen) shift;  OPT_FULLSCREEN=true;;
+		-p|-path|--path) shift;              OPT_CREATE_PATH=true;;
+		-d|-dos|--dos|-shell|--shell) shift; OPT_MODE=DOS;;
+		-4|-WS4|--WS4) shift;                OPT_MODE=WS;;
+		-3|-WS3|--WS3) shift;                OPT_MODE=WS3;;
+		-2|-WS2|--WS2) shift;                OPT_MODE=WS2;;
+		-s|-sawyer|--sawyer) shift;          OPT_MODE=SAWYER;;
+		-b|-base|--base) shift;              OPT_MODE=PRISTINE;;
+		--) shift; break;;
+		-*) die "Unknown option: '$1', use -h for help.";;
+		esac
+	done
+
+	$OPT_FULLSCREEN && DOSBOX_ARGUMENTS+=(-fullscreen)
+
+	if [[ "$OPT_MODE" != "DOS" ]]
+	then
+		DOSBOX_ARGUMENTS+=(
+			-c "$OPT_MODE ${DOC_DRIVE%:}:\\$(
+				add_document_root_if_missing <<<"$@" |
+				add_ws_extenstion_if_missing |
+				strip_document_root |
+				reverse_slashes)"
+			-c "EXIT"
+		)
+	fi
+
+	"$DOSBOX_X" "${DOSBOX_ARGUMENTS[@]}" 2>$DEBUG_DESTINATION
+}
+version(){
+	/usr/bin/awk '/^#!/{next}/^#/{sub("^# *","");print;next}{exit}' "$0"
+}
+die(){
+	echo "$1">&2
+	exit 1
+}
+add_document_root_if_missing(){
+	strip_document_root | add_document_root
+}
+strip_document_root(){
+	/usr/bin/perl -0pe 's:^\Q'"${DOC_ROOT%/}"'/\E::mg'
+}
+add_document_root(){
+	echo "${DOC_ROOT%/}/$(cat -)"
+}
+reverse_slashes(){
+	# shellcheck disable=SC1003   # not trying to escape the single quote
+	tr '/' '\'
+}
+add_ws_extenstion_if_missing(){ local file_path
+	file_path="$(cat -)"
+	# check if the file exists, or if it exists when appending .WS extension
+	# it's done the hard way in case the filesystem is case sensitive
+	for possible_file in "$file_path" "$file_path".[Ww][Ss]
+	do
+		if [[ -e "$possible_file" ]]; then
+			echo "$possible_file" # existing document or directory
+			return
+		fi
+	done
+	$OPT_CREATE_PATH && mkdir -p "$(dirname "$file_path")"
+	echo "${file_path%.[Ww][Ss]}.WS" # new document with WS extension
+}
+main "$@"
