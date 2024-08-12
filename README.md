@@ -8,21 +8,21 @@ It works with a _WordStar 7_ archive
 that was put together by science-fiction writer Robert J. Sawyer.
 It can be downloaded from [his blog](https://sfwriter.com/blog/?p=5806).
 
-#### Warnings
+## Warnings
 
 This project is unstable,
 in that I might radically change
 how everything is structured in the next revision.
 Updating could be painful.
 
-**Use this launcher at your own risk.
+Use this launcher at your own risk.
 It works for me, but If you should loose data or whatever
 don't blame me.
-Please refer to the LICENCE file.**
+Please refer to the `LICENCE` file.
 
 That being said,
 If something doesn't work,
-please let me know.
+please raise the [issue](https://github.com/heckman/wordstar-launcher/issues).
 
 ## Operation
 

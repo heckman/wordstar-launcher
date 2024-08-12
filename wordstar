@@ -15,7 +15,8 @@ C_DRIVE="$HOME/Applications/WordStar/DOS root/"
 CONFIG="$HOME/Applications/WordStar/dosbox-x.conf"
 DOSBOX_X="/Applications/dosbox-x.app/Contents/MacOS/dosbox-x"
 
-# it doesn't matter what drive letter is used here.
+# it doesn't matter what drive letter is used here,
+# as long as it's not C: or Z:
 DOC_DRIVE="D:"
 
 # dos commands that are run in lieu of `autoexec.bat`
