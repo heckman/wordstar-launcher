@@ -26,7 +26,7 @@ ENABLE_ALLOWING_DOCUMENTS_ANYWHERE_AS_AN_OPTION=true
 # change them to alter default behaviour
 # if you change these, remember to update the defaults in help() as well
 OPT_WORDSTAR_PRESET=WS
-OPT_WORDSTAR_OPTION='/h2'
+OPT_WORDSTAR_OPTION=''
 OPT_FULLSCREEN=false
 OPT_CREATE_MISSING_PATHS=false
 OPT_ALLOW_DOCUMENTS_ANYWHERE=false
