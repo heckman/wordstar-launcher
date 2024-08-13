@@ -66,15 +66,21 @@ DEBUG_DESTINATION=/dev/null
 help(){
 	echo "USAGE: wordstar [OPTIONS] [--] [DOCUMENT]
 
-    Launches WordStar in an emulated DOS environment.
+    Launches WordStar in an emulated DOS environment
+    using Robert J. Sawyer's WordStar archive: https://sfwriter.com/ws7.htm
+
 
     OPTIONS THAT IGNORE ALL OTHER OPTIONS:
+
         -V, -version      Print version and copyright message and exit.
         -h, -help         Print this helpful message and exit.
         -hp, -paged-help  Open this helpful message in a pager.
 
 
     OPTIONS THAT SET WHAT TO LAUNCH IN THE EMULATOR:
+
+        -dos, -shell      Don't launch WordStar, just launch DOSBox-X.
+                          This is useful for testing etc.
         -pristine         Launch WordStar with an unmodified out-of-the-box
                           version of WordStar.
         -subdued          Launch WordStar with Robert J. Sawyer's custom
@@ -82,32 +88,51 @@ help(){
         -sawyer           Launch WordStar with Robert J. Sawyer's preferred
                           layout and extensive cutomizations.
                           Default help level is 2.
-        -dos, -shell      Don't launch WordStar, just launch DOSBox-X.
-                          This is useful for testing etc.
+
+        For descriptions of the presets, see the following file
+        in Robert J. Sawyer's WordStar archive:
+            '${DOS_ROOT_PATH%/}/WS/VERSIONS.TXT'
+
 
     OPTIONS THAT TWEAK WORDSTAR:
+
         -h4, -help4       Launch WordStar with \"Help Level 4\" (default).
         -h3, -help3       Launch WordStar with \"Help Level 3\".
         -h2, -help2       Launch WordStar with \"Help Level 2\".
         -h1, -help1       Launch WordStar with \"Help Level 1\".
         -h0, -help0       Launch WordStar with \"Help Level 0\".
 
+
     OPTIONS THAT TWEAK SCRIPT AND DOS EMULATOR:
+
         -v, -verbose      Be verbose: output dosbox-x debug messages.
         -f, -fullscreen   Start the emulation in full-screen mode.
         -w, -window       Start the emulation in windowed mode (default).
         -p, -path         If creating a new document, create its parent.
                           directories as required (not done by default).
 
+
     OPTIONS ALLOWING/RESTRICTING DIRECTORY MOUNTING:
-        -d, -documents    restrict mounting directories to
-                          ${DOCUMENT_ROOT_PATH%/}/
-                          only files under this directory will be accessible
-                          This is the default behaviour.
-        -a, -any          allow opening document in any directory
-                          i.e. don't restrict documents to
-                          ${DOCUMENT_ROOT_PATH%/}/
-                          this will expose the directory to DOSBox-X and WordStar
+
+        -d, -documents
+
+            Restrict opening documents to the directory tree, the root of
+            which is mounted as ${DOCUMENT_DRIVE%:}:, currently:
+                ${DOCUMENT_ROOT_PATH%/}/
+            Only files in this filesystem tree will be accessible.
+            This is the only directory that can be mounted by,
+            and is accessible to, DOSBox-X and WordStar.
+
+            DOCUMENT is relative to the mounted document tree root.
+            unless it begins with a / and resolves to a path that resides
+            within the mounted document tree.
+
+        -a, -any
+
+            Allow documents from any directory to be opened.
+            This will mount the document's parent directory in DOSBox-X,
+            exposing it to both DOSBox-X and WordStar.
+
 
     Each option must be specified in its own argument,
     i.e. they cannot be combined like '-pw', but should be '-p -w'.
@@ -116,12 +141,21 @@ help(){
 
     -- is required if DOCUMENT begins with a -.
 
-    If DOCUMENT is relative to the ${DOCUMENT_DRIVE%:}: drive mount, unless it begins with a /
-    and points to a path that resides within the ${DOCUMENT_DRIVE%:}: drive mount.
+    If DOCUMENT doesn't exist, a new document with the given name will
+    will be opened in WordStar. The document's name appended with .WS if it
+    doesn't already have that extension.
 
-    If DOCUMENT doesn't exist, a new document will be opened in WordStar,
-    with the document's name appended with .WS if it doesn't already have
-    that extension.
+    ----------------------------------------------------------------------------
+
+    For more information about WordStar, and Robert J. Sawyer's
+    WordStar archive, see https://sfwriter.com/ws7.htm
+
+    The archive is stored locally as:
+        '${DOS_ROOT_PATH%/}/WS/'.
+
+    Its README file can be found here:
+        '${DOS_ROOT_PATH%/}/WS/-README.TXT'.
+
 
 "
 }
