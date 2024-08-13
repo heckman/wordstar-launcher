@@ -36,8 +36,21 @@ will open it with _WordStar_ running in the _DOS_ emulator.
 
 Documents can also be opened from the command line.
 Use the command `wordstar -h` for help with that.
-Note that _WordStar_ documents must still reside
-under the _WordStar_ document directory.
+
+Note that _WordStar_ documents must normally reside
+under the _WordStar_ document directory,
+regardless of how they are opened.
+
+Version 0.4 adds the ability
+to open a _WordStar_ document anywhere
+with the '-a' or '-any' option.
+This will mount the document's parent directory
+in _DOSBox-X_, exposing it
+both to the emulator and to _WordStar_.
+Use this option at your own risk.
+
+Defaults for this option, and other options,
+can be set by changing the
 
 ## Installation
 
