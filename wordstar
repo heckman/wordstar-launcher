@@ -71,6 +71,8 @@ help(){
     OPTIONS THAT IGNORE ALL OTHER OPTIONS:
         -V, -version      Print version and copyright message and exit.
         -h, -help         Print this helpful message and exit.
+        -hp, -paged-help  Open this helpful message in a pager.
+
 
     OPTIONS THAT SET WHAT TO LAUNCH IN THE EMULATOR:
         -pristine         Launch WordStar with an unmodified out-of-the-box
@@ -129,8 +131,10 @@ main(){
 	while [[ "${1:0:1}" == '-' ]]
 	do
 		case "$1" in
-		-h|-help|--help) help; exit;; # ignore other options
 		-V|-version|--version) version; exit;;  # ignore other options
+		-h|-help|--help) help; exit;; # ignore other options
+		-hp|-help-paged|--help-paged)
+			help | ${PAGER:-/usr/bin/less}; exit;; # ignore other options
 		-dos|--dos|-shell|--shell) shift;    OPT_SHELL_ONLY=true;;
 		-h4|-help4|--help4) shift;           OPT_WORDSTAR_OPTION='/h4';;
 		-h3|-help3|--help3) shift;           OPT_WORDSTAR_OPTION='/h3';;
