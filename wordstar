@@ -75,6 +75,8 @@ help(){
     OPTIONS THAT SET WHAT TO LAUNCH IN THE EMULATOR:
         -pristine         Launch WordStar with an unmodified out-of-the-box
                           version of WordStar.
+        -subdued          Launch WordStar with Robert J. Sawyer's custom
+                          less-harsh colour scheme
         -sawyer           Launch WordStar with Robert J. Sawyer's preferred
                           layout and extensive cutomizations.
                           Default help level is 2.
@@ -135,6 +137,7 @@ main(){
 		-h2|-help2|--help2) shift;           OPT_WORDSTAR_OPTION='/h2';;
 		-h1|-help1|--help1) shift;           OPT_WORDSTAR_OPTION='/h1';;
 		-h0|-help0|--help0) shift;           OPT_WORDSTAR_OPTION='/h0';;
+		-subdued|--subdued) shift;           OPT_WORDSTAR_PRESET=WSRJS;;
 		-sawyer|--sawyer) shift;             OPT_WORDSTAR_PRESET=SAWYER;;
 		-pristine|--pristine) shift;         OPT_WORDSTAR_PRESET=PRISTINE;;
 		-v|-verbose|--verbose) shift;        DEBUG_DESTINATION=/dev/stderr;;
