@@ -7,9 +7,8 @@
 # wordstar: Launch WordStar in an emulated DOS environment on MacOS
 
 
+
 set -euo pipefail
-
-
 
 # don't use '~' in these paths as it won't necessarily be escaped
 DOCUMENT_ROOT_PATH="$HOME/Documents/WordStar/"
@@ -20,15 +19,15 @@ DOSBOX_X_PATH="/Applications/dosbox-x.app/Contents/MacOS/dosbox-x"
 
 # this enables accessing documents anywhere
 # it still needs to be specified as a command line option
-# unless the default value below is OPT_DYNAMIC_MOUNT=true
-ALLOW_DYNAMIC_MOUNTING=true
+# unless the default value below is OPT_ALLOW_DOCUMENTS_ANYWHERE=true
+ENABLE_ALLOWING_DOCUMENTS_ANYWHERE_AS_AN_OPTION=true
 
 # default options, can be overridden by command line options
 # change them to alter default behaviour
-OPT_MODE=WS
+OPT_WORDSTAR_MODE=WS
 OPT_FULLSCREEN=false
-OPT_CREATE_PATH=false
-OPT_DYNAMIC_MOUNT=false
+OPT_CREATE_MISSING_PATHS=false
+OPT_ALLOW_DOCUMENTS_ANYWHERE=false
 
 
 # these settings are relative the config file provided
@@ -124,23 +123,23 @@ main(){
 		case "$1" in
 		-h|-help|--help) help; exit;; # ignore other options
 		-V|-version|--version) version; exit;;  # ignore other options
-		-dos|--dos|-shell|--shell) shift;    OPT_MODE=DOS;;
-		-4|-WS4|--WS4) shift;                OPT_MODE=WS;;
-		-3|-WS3|--WS3) shift;                OPT_MODE=WS3;;
-		-2|-WS2|--WS2) shift;                OPT_MODE=WS2;;
-		-s|-sawyer|--sawyer) shift;          OPT_MODE=SAWYER;;
-		-b|-base|--base) shift;              OPT_MODE=PRISTINE;;
+		-dos|--dos|-shell|--shell) shift;    OPT_WORDSTAR_MODE=NONE;;
+		-4|-WS4|--WS4) shift;                OPT_WORDSTAR_MODE=WS;;
+		-3|-WS3|--WS3) shift;                OPT_WORDSTAR_MODE=WS3;;
+		-2|-WS2|--WS2) shift;                OPT_WORDSTAR_MODE=WS2;;
+		-s|-sawyer|--sawyer) shift;          OPT_WORDSTAR_MODE=SAWYER;;
+		-b|-base|--base) shift;              OPT_WORDSTAR_MODE=PRISTINE;;
 		-v|-verbose|--verbose) shift;        DEBUG_DESTINATION=/dev/stderr;;
-		-w|-window|--window) shift;          OPT_FULLSCREEN=false;;
+		-w|-window*|--window*) shift;        OPT_FULLSCREEN=false;;
 		-f|-fullscreen|--fullscreen) shift;  OPT_FULLSCREEN=true;;
-		-p|-path|--path) shift;              OPT_CREATE_PATH=true;;
-		-d|-documents|--documents) shift;    OPT_DYNAMIC_MOUNT=false;;
+		-p|-path|--path) shift;              OPT_CREATE_MISSING_PATHS=true;;
+		-d|-documents|--documents) shift;    OPT_ALLOW_DOCUMENTS_ANYWHERE=false;;
 		-a|-any*|--any*) shift
-			if $ALLOW_DYNAMIC_MOUNTING
+			if $ENABLE_ALLOWING_DOCUMENTS_ANYWHERE_AS_AN_OPTION
 			then
-				OPT_DYNAMIC_MOUNT=true
+				OPT_ALLOW_DOCUMENTS_ANYWHERE=true
 			else
-				die "Dynamic mounting not enabled."
+				die "Opening documents in any directory is disabled."
 			fi
 			;;
 		--) shift; break;;
@@ -151,8 +150,8 @@ main(){
 	$OPT_FULLSCREEN && DOSBOX_ARGUMENTS+=(-fullscreen)
 
 	# determine mount_path, ws_document, and mount_drive
-	local  mount_path ws_document mount_drive
-	if $OPT_DYNAMIC_MOUNT
+	local  mount_path ws_document
+	if $OPT_ALLOW_DOCUMENTS_ANYWHERE
 	then
 		if [[ -d "$1" ]]
 		then
@@ -181,7 +180,7 @@ main(){
 
 	# make sure mount_path exists
 	[[ -d "$mount_path" ]] || die \
-		"Directory '$mount_path' doesn't exist, use -p option to create it."
+		"Directory '$mount_path' doesn't exist, use the -p option to create it."
 
 	# add commands: mount the document drive and make it the working directory
 	DOSBOX_ARGUMENTS+=(
@@ -189,7 +188,7 @@ main(){
 		-c "${DOCUMENT_DRIVE}"
 	)
 
-	if [[ "$OPT_MODE" == "DOS" ]]
+	if [[ "$OPT_WORDSTAR_MODE" == "NONE" ]]
 	then
 		# add commands for debugging purposes
 		DOSBOX_ARGUMENTS+=(
@@ -198,9 +197,9 @@ main(){
 			-c "echo WS_DOCUMENT is set to %WS_DOCUMENT%"
 		)
 	else
-		# add commands: run WordStar then exit
+		# add commands: run WordStar with document then exit
 		DOSBOX_ARGUMENTS+=(
-			-c "$OPT_MODE ${ws_document}"
+			-c "$OPT_WORDSTAR_MODE ${ws_document}"
 			-c "EXIT"
 		)
 	fi
@@ -231,7 +230,7 @@ find_ws_document(){ local path="$1"
 		fi
 	done
 	dirname "$path" >&2
-	$OPT_CREATE_PATH && mkdir -p "$(dirname "$path")"
+	$OPT_CREATE_MISSING_PATHS && mkdir -p "$(dirname "$path")"
 	# new document with WS extension
 	echo "${path%.[Ww][Ss]}.WS"
 }
@@ -243,8 +242,6 @@ version(){
 die(){
 	echo "$1">&2
 	exit 77
-	# exit doesn't work if we're in a subshell
-	# kill $$ 2>/dev/null
 }
 
 main "$@"
