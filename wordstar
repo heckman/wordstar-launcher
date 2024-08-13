@@ -10,7 +10,6 @@
 set -euo pipefail
 
 
-ALLOW_DYNAMIC_MOUNTING=true
 
 # don't use '~' in these paths as it won't necessarily be escaped
 DOCUMENT_ROOT_PATH="$HOME/Documents/WordStar/"
@@ -18,10 +17,19 @@ DOS_ROOT_PATH="$HOME/Applications/WordStar/DOS root/"
 DOSBOX_CONFIG_PATH="$HOME/Applications/WordStar/dosbox-x.conf"
 DOSBOX_X_PATH="/Applications/dosbox-x.app/Contents/MacOS/dosbox-x"
 
-# it doesn't matter what drive letters are used here,
-# as long as they're not C: or Z:
-# and that they are not the same as each other.
-DOCUMENT_DRIVE="D:" # this is also used for dynamic mount
+
+# this enables accessing documents anywhere
+# it still needs to be specified as a command line option
+# unless the default value below is OPT_DYNAMIC_MOUNT=true
+ALLOW_DYNAMIC_MOUNTING=true
+
+# default options, can be overridden by command line options
+# change them to alter default behaviour
+OPT_MODE=WS
+OPT_FULLSCREEN=false
+OPT_CREATE_PATH=false
+OPT_DYNAMIC_MOUNT=false
+
 
 # these settings are relative the config file provided
 # at /WS/DOSBox-X/dosbox-x.conf
@@ -43,12 +51,11 @@ DOSBOX_ARGUMENTS=(
 	-c "mount -q C: \"${DOS_ROOT_PATH%/}\""
 )
 
-# default options, can be overridden by command line options
-# change them to alter default behaviour
-OPT_MODE=WS
-OPT_FULLSCREEN=false
-OPT_CREATE_PATH=false
-OPT_DYNAMIC_MOUNT=false
+# it doesn't matter what drive letters are used here,
+# as long as they're not C: or Z:
+# and that they are not the same as each other.
+DOCUMENT_DRIVE="D:" # this is also used for dynamic mount
+
 
 # don't change the following options
 DEBUG_DESTINATION=/dev/null
