@@ -1,5 +1,10 @@
 # Change Log
 
+## Version 0.4.2
+
+- Change the default behaviour to allow documents at any path to be opened.
+  This exposes their parent directory to _DOSBox-X_ and _WordStar_.
+
 ## Version 0.4.1
 
 - Change command-line options. This is a breaking change.

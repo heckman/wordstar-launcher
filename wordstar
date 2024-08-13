@@ -1,5 +1,5 @@
 #!/bin/bash
-# wordstar, version 0.4.1
+# wordstar, version 0.4.2
 # copyright 2024 Erik Ben Heckman <erik@heckman.ca>
 # shared under the terms of the MIT license
 
@@ -29,7 +29,7 @@ OPT_WORDSTAR_PRESET=WS
 OPT_WORDSTAR_OPTION=''
 OPT_FULLSCREEN=false
 OPT_CREATE_MISSING_PATHS=false
-OPT_ALLOW_DOCUMENTS_ANYWHERE=false
+OPT_ALLOW_DOCUMENTS_ANYWHERE=true
 OPT_SHELL_ONLY=false
 
 # these settings are relative the config file provided
@@ -132,6 +132,8 @@ help(){
             Allow documents from any directory to be opened.
             This will mount the document's parent directory in DOSBox-X,
             exposing it to both DOSBox-X and WordStar.
+
+            This is the default behaviour.
 
 
     Each option must be specified in its own argument,
