@@ -1,5 +1,9 @@
 # Change Log
 
+## Version 0.5.0
+
+- Use `zsh` as the script's interpreter.
+
 ## Version 0.4.2
 
 - Change the default behaviour to allow documents at any path to be opened.
