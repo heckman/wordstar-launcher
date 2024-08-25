@@ -1,43 +1,29 @@
-#!/bin/zsh
+#!/bin/zsh -f
 # wordstar, version 0.5
 # copyright 2024 Erik Ben Heckman <erik@heckman.ca>
 # shared under the terms of the MIT license
 
-
 # wordstar: Launch WordStar in an emulated DOS environment on MacOS
 
-
-
+if [[ $1 = --debug ]]; then set -x; shift; fi
 set -euo pipefail
 
-# don't use '~' in these paths as it won't necessarily be escaped
-DOCUMENT_ROOT_PATH="$HOME/Documents/WordStar/"
-DOS_ROOT_PATH="$HOME/Applications/WordStar/DOS root/"
-DOSBOX_CONFIG_PATH="$HOME/Applications/WordStar/dosbox-x.conf"
-DOSBOX_X_PATH="/Applications/dosbox-x.app/Contents/MacOS/dosbox-x"
+# default options
+# all but `dosbox_path` can be modified with command-line options
+# don't use '~' in paths as it wont be expanded
+typeset -A WS_SETTINGS=(
+	[dosbox_path]="/Applications/dosbox-x.app/Contents/MacOS/dosbox-x"
+	[dosbox_config_path]="$HOME/Applications/WordStar/dosbox-x.conf"
+	[c_mount_path]="$HOME/Applications/WordStar/DOS root"
+	[wordstar_executable]="WS"
+	[fullscreen]=false
+	[create_missing_paths]=false
+	[shell_only]=false
+	[documents_mount_path]=''
+	[documents_drive_letter]='D:'
+)
 
-
-# this enables accessing documents anywhere
-# it still needs to be specified as a command line option
-# unless the default value below is OPT_ALLOW_DOCUMENTS_ANYWHERE=true
-ENABLE_ALLOWING_DOCUMENTS_ANYWHERE_AS_AN_OPTION=true
-
-# default options, can be overridden by command line options
-# change them to alter default behaviour
-# if you change these, remember to update the defaults in help() as well
-OPT_WORDSTAR_PRESET=WS
-OPT_WORDSTAR_OPTION=''
-OPT_FULLSCREEN=false
-OPT_CREATE_MISSING_PATHS=false
-OPT_ALLOW_DOCUMENTS_ANYWHERE=true
-OPT_SHELL_ONLY=false
-
-# these settings are relative the config file provided
-# at /WS/DOSBox-X/dosbox-x.conf
-# in Robert J. Sawyer's WordStar 7 Archive
-# downloaded from https://sfwriter.com/ws7.htm
-DOSBOX_ARGUMENTS=(
-	-conf "$DOSBOX_CONFIG_PATH"
+typeset -a WS_DOSBOX_ARGS=(
 	-fastlaunch
 	-noautoexec
 	-set 'sdl fullscreen=false'
@@ -49,103 +35,81 @@ DOSBOX_ARGUMENTS=(
 	-set 'ttf lins=30'
 	-set 'ttf cols=96'
 	-c "@echo off"
-	-c "mount -q C: \"${DOS_ROOT_PATH%/}\""
 )
 
-# it doesn't matter what drive letters are used here,
-# as long as they're not C: or Z:
-# and that they are not the same as each other.
-DOCUMENT_DRIVE="D:" # this is also used for dynamic mount
+typeset -a WS_WORDSTAR_ARGS
 
 
-# don't change the following options
-DEBUG_DESTINATION=/dev/null
-
-
-
-help(){
+print_help(){
 	echo "USAGE: wordstar [OPTIONS] [--] [DOCUMENT]
 
     Launches WordStar in an emulated DOS environment
     using Robert J. Sawyer's WordStar archive: https://sfwriter.com/ws7.htm
 
+    If DOCUMENT doesn't exist, a new document will be opened in WordStar.
+    It's name will be appended with .WS if it doesn't already have that
+    extension. Note: '--' is required if DOCUMENT begins with a '-'.
 
-    OPTIONS THAT IGNORE ALL OTHER OPTIONS:
+    OPTIONS:
 
-        -V, -version      Print version and copyright message and exit.
-        -h, -help         Print this helpful message and exit.
-        -hp, -paged-help  Open this helpful message in a pager.
+    -P <PRESET>, --preset <PRESET>
+            Start WordStar with one of the folloing presets:
+                pristine   an unmodified out-of-the-box WordStar
+                subdued    R.J. Sawyer's custom less-harsh colour scheme
+                sawyer     R.J. Sawyer's preferred layout and extensive
+                           customizations. Default help level is 2.
+            For descriptions of the presets, see the following
+            file in Robert J. Sawyer's WordStar archive:
+            '${WS_SETTINGS[c_mount_path]%/}/WS/VERSIONS.TXT'
 
+    -H <HELP-LEVEL>, --helplevel <HELP-LEVEL>
+            Start WordStar with onethe specified help level:
+                0    About help leve 0
+                1    About help leve 1
+                2    About help leve 2
+                3    About help leve 3
+                4    About help leve 4 (default)
 
-    OPTIONS THAT SET WHAT TO LAUNCH IN THE EMULATOR:
+    -f, --fullscreen
+            Run WordStar in fullscreen mode.
 
-        -dos, -shell      Don't launch WordStar, just launch DOSBox-X.
-                          This is useful for testing etc.
-        -pristine         Launch WordStar with an unmodified out-of-the-box
-                          version of WordStar.
-        -subdued          Launch WordStar with Robert J. Sawyer's custom
-                          less-harsh colour scheme
-        -sawyer           Launch WordStar with Robert J. Sawyer's preferred
-                          layout and extensive cutomizations.
-                          Default help level is 2.
+    -w, --window,
+            Run WordStar in a window. (Not fullscreen. Default.)
 
-        For descriptions of the presets, see the following file
-        in Robert J. Sawyer's WordStar archive:
-            '${DOS_ROOT_PATH%/}/WS/VERSIONS.TXT'
+    -p, --paths
+            When creating a new document, create intermediate
+            directories as required.
 
+    -m <DOCUMENT-ROOT>, --mount <DOCUMENT-ROOT>
+            Mount the specified path as the document root.
+            Only files in this directory tree will be accessible by WordStar.
+            With this option, if DOCUMENT is provided as a relative path,
+            it will be relative to this path.
 
-    OPTIONS THAT TWEAK WORDSTAR:
+            Without this option, the directory containing DOCUMENT
+            will be mounted, unless DOCUMENT is itself a directory,
+            in which case it itself will be mounted.
 
-        -h4, -help4       Launch WordStar with \"Help Level 4\" (default).
-        -h3, -help3       Launch WordStar with \"Help Level 3\".
-        -h2, -help2       Launch WordStar with \"Help Level 2\".
-        -h1, -help1       Launch WordStar with \"Help Level 1\".
-        -h0, -help0       Launch WordStar with \"Help Level 0\".
+    -c <CONFIG_FILE>, --conf <CONFIG_FILE>, --config <CONFIG_FILE>
+            Specify a DOSBox-X config file file to use.
 
+    -x <CONFIG_FILE>, --dosbox, <CONFIG_FILE>, --dosbox-x <CONFIG_FILE>
+            Specify DOSBox-x program to use.
 
-    OPTIONS THAT TWEAK SCRIPT AND DOS EMULATOR:
+    -d, --dos, --shell
+            Don't launch WordStar, just launch DOSBox-X.
 
-        -v, -verbose      Be verbose: output dosbox-x debug messages.
-        -f, -fullscreen   Start the emulation in full-screen mode.
-        -w, -window       Start the emulation in windowed mode (default).
-        -p, -path         If creating a new document, create its parent.
-                          directories as required (not done by default).
+    -r <DOS-ROOT>, --root <DOS-ROOT>, --c-drive <DOS-ROOT>
+            Specify a path to mount as the DOS root directory (C: drive)
+            This directory must contain the WS directory
+            from Robert J. Sawyer's WordStar archive.
 
+    -h, --help
+            Print this helpful message and exit.
 
-    OPTIONS ALLOWING/RESTRICTING DIRECTORY MOUNTING:
+    -V, --version
+            Print version and copyright message and exit.
 
-        -d, -documents
-
-            Restrict opening documents to the directory tree, the root of
-            which is mounted as ${DOCUMENT_DRIVE%:}:, currently:
-                ${DOCUMENT_ROOT_PATH%/}/
-            Only files in this filesystem tree will be accessible.
-            This is the only directory that can be mounted by,
-            and is accessible to, DOSBox-X and WordStar.
-
-            DOCUMENT is relative to the mounted document tree root.
-            unless it begins with a / and resolves to a path that resides
-            within the mounted document tree.
-
-        -a, -any
-
-            Allow documents from any directory to be opened.
-            This will mount the document's parent directory in DOSBox-X,
-            exposing it to both DOSBox-X and WordStar.
-
-            This is the default behaviour.
-
-
-    Each option must be specified in its own argument,
-    i.e. they cannot be combined like '-pw', but should be '-p -w'.
-    The long options can also be specified with two dashes.
-    If multiple launch options are specified only the last one will be used.
-
-    -- is required if DOCUMENT begins with a -.
-
-    If DOCUMENT doesn't exist, a new document with the given name will
-    will be opened in WordStar. The document's name appended with .WS if it
-    doesn't already have that extension.
 
     ----------------------------------------------------------------------------
 
@@ -153,116 +117,173 @@ help(){
     WordStar archive, see https://sfwriter.com/ws7.htm
 
     The archive is stored locally as:
-        '${DOS_ROOT_PATH%/}/WS/'.
+        '${WS_SETTINGS[c_mount_path]%/}/WS/'.
 
     Its README file can be found here:
-        '${DOS_ROOT_PATH%/}/WS/-README.TXT'.
+        '${WS_SETTINGS[c_mount_path]%/}/WS/-README.TXT'.
 
 
 "
 }
 
+function process_option(){ local key=$1 value=${2:-}
+	case $key in
+	help) help;;
+	version) version;;
+	config) WS_SETTINGS[dosbox_config_path]=$value;;
+	c-drive) WS_SETTINGS[c_mount_path]=$value;;
+	shell) WS_SETTINGS[shell_only]=true;;
+	verbose) WS_SETTINGS[verbose]=true;;
+	fullscreen) WS_SETTINGS[fullscreen]=true;;
+	window) WS_SETTINGS[fullscreen]=false;;
+	paths) WS_SETTINGS[create_missing_paths]=true ;;
+	mount) WS_SETTINGS[documents_mount_path]="${value%/}/";;
+	preset) case $value in
+		pristine) WS_SETTINGS[wordstar_executable]=PRISTINE;;
+		subdues) WS_SETTINGS[wordstar_executable]=WSRJS;;
+		sawyer) WS_SETTINGS[wordstar_executable]=SAWYER;;
+		*) die "unknown preset: $value";;
+		esac;;
+	helplevel) case $value in
+		<0-4>) WS_WORDSTAR_ARGS+=("/h$value");;
+		*) die "invalid help level: $value";;
+		esac;;
+	dosbox-x) WS_SETTINGS[dosbox_path]=$value;;
+	*) die "unknown option: $key";;
+	esac
+}
+
+parse_command_line_options(){
+	# TODO
+	# this section was in its own function, but `opts` was local,
+	# i'll try making it global and see if that works.
+	:
+}
+
+
 
 main(){
-	while [[ "${1:-}" = -* ]]
-	do
-		case "$1" in
-		-V|-version|--version) version; exit;;  # ignore other options
-		-h|-help|--help) help; exit;; # ignore other options
-		-hp|-help-paged|--help-paged)
-			help | ${PAGER:-/usr/bin/less}; exit;; # ignore other options
-		-dos|--dos|-shell|--shell) shift;    OPT_SHELL_ONLY=true;;
-		-h4|-help4|--help4) shift;           OPT_WORDSTAR_OPTION='/h4';;
-		-h3|-help3|--help3) shift;           OPT_WORDSTAR_OPTION='/h3';;
-		-h2|-help2|--help2) shift;           OPT_WORDSTAR_OPTION='/h2';;
-		-h1|-help1|--help1) shift;           OPT_WORDSTAR_OPTION='/h1';;
-		-h0|-help0|--help0) shift;           OPT_WORDSTAR_OPTION='/h0';;
-		-subdued|--subdued) shift;           OPT_WORDSTAR_PRESET=WSRJS;;
-		-sawyer|--sawyer) shift;             OPT_WORDSTAR_PRESET=SAWYER;;
-		-pristine|--pristine) shift;         OPT_WORDSTAR_PRESET=PRISTINE;;
-		-v|-verbose|--verbose) shift;        DEBUG_DESTINATION=/dev/stderr;;
-		-w|-window*|--window*) shift;        OPT_FULLSCREEN=false;;
-		-f|-fullscreen|--fullscreen) shift;  OPT_FULLSCREEN=true;;
-		-p|-path|--path) shift;              OPT_CREATE_MISSING_PATHS=true;;
-		-d|-documents|--documents) shift;    OPT_ALLOW_DOCUMENTS_ANYWHERE=false;;
-		-a|-any*|--any*) shift
-			if $ENABLE_ALLOWING_DOCUMENTS_ANYWHERE_AS_AN_OPTION
-			then
-				OPT_ALLOW_DOCUMENTS_ANYWHERE=true
-			else
-				die "Opening documents in any directory is disabled."
-			fi
-			;;
-		--) shift; break;;
-		-*) die "Unknown option: '$1', use -h for help.";;
-		esac
 
-	done
+	# TODO try again to move this to a function
+	# zparseopts produces unsightly error messages
+	# e.g.:
+	#   main:zparseopts:3: bad option: -a
+	#   main:zparseopts:3: missing argument for option: -H
+	#
+	# this workaround uses a temporary file... it's the only way I could find
+	# that avoided running `zparseopts` in a subshell
+	local zparsopts_errors=$(mktemp)
+	local -A opts
+	trap "if [[ -f $zparsopts_errors ]]; then rm $zparsopts_errors; fi" EXIT
 
-	$OPT_FULLSCREEN && DOSBOX_ARGUMENTS+=(-fullscreen)
+	zparseopts -F -M -D -A opts $(print_help | help_opts) 2> $zparsopts_errors || :
 
-
-	# determine mount_path, ws_document, and mount_drive
-	local  mount_path ws_document
-	if $OPT_ALLOW_DOCUMENTS_ANYWHERE
-	then
-		mount_path="${1:-.}"
-		info "mount_path=$mount_path"
-		if [[ -d $mount_path ]]
-		then
-			ws_document=""
-		else
-			ws_document="$(
-				/usr/bin/basename $(
-					find_ws_document "$mount_path"
-				) 2>/dev/null || : |
-				reverse_slashes
-			)"
-			info "ws_document=$ws_document"
-			[[ ! $mount_path = */ ]] && mount_path=$(/usr/bin/dirname $mount_path)
-			info "mount_path=$mount_path"
-		fi
-	else
-		mount_path="${DOCUMENT_ROOT_PATH%/}"
-		ws_document="$(
-			strip_doc_dir "$(
-				find_ws_document "$(
-					prepend_doc_dir "${1:-}"
-				)"
-			)" |
-			reverse_slashes
-		)"
+	if [[ -s $zparsopts_errors ]]; then
+		die "$(cat $zparsopts_errors | sed 's/^[^ ]* //')"
 	fi
 
-	# make sure mount_path exists
-	[[ -d "$mount_path" ]] || die \
-		"Directory '$mount_path' doesn't exist, use the -p option to create it."
+	for k v in "${(@kv)opts}"
+	do process_option ${k#--} $v
+	done
 
-	# add commands: mount the document drive and make it the working directory
-	DOSBOX_ARGUMENTS+=(
-		-c "mount -q ${DOCUMENT_DRIVE} \"${mount_path}\""
-		-c "${DOCUMENT_DRIVE}"
+	# TODO move this to a function
+	validate_executable ${WS_SETTINGS[dosbox_path]} "dosbox-x"
+	validate_file ${WS_SETTINGS[dosbox_config_path]} "config file"
+	WS_DOSBOX_ARGS+=( -conf "${WS_SETTINGS[dosbox_config_path]}" )
+	validate_dir ${WS_SETTINGS[c_mount_path]} "C: mount path"
+	WS_DOSBOX_ARGS+=( -c "mount -q C: \"${WS_SETTINGS[c_mount_path]}\"" )
+	if $WS_SETTINGS[fullscreen]; then WS_DOSBOX_ARGS+=(-fullscreen); fi
+
+	# WS_PARSE_OPT_ERRORS=$(cat /tmp/myfifo)
+	# rm /tmp/myfifo
+	# set | grep -E '^WS_[A-Z_]*='
+	# echo "args: $@"
+
+	# TODO move this to a function
+	local mount_path
+	# TODO fix bug
+	# ${WS_SETTINGS[documents_mount_path]} always ends with a slash
+	mount_path=${WS_SETTINGS[documents_mount_path]:-${1:-.}}
+	mount_path=${${mount_path/*/${mount_path}_}:A:h}
+
+	# TODO move this to a function
+	# make sure mount_path exists
+	if [[ ! -d "$mount_path" ]]
+	then
+		if ${WS_SETTINGS[create_missing_paths]}
+		then
+			mkdir -p "$mount_path"
+		else
+			die "Directory '$mount_path' doesn't exist, use the -p option to create it."
+		fi
+	fi
+	WS_DOSBOX_ARGS+=(
+		-c "mount -q ${WS_SETTINGS[documents_drive_letter]%:}: \"${mount_path}\""
+		-c "${WS_SETTINGS[documents_drive_letter]%:}:"
 	)
 
-	if $OPT_SHELL_ONLY
+
+	# TODO move this to a function
+	local target_document wordstar_document
+	target_document=${${1:-.}:A}
+	wordstar_document="${(q)$(descendent ${target_document} ${mount_path} | reverse_slashes)}" ||
+		die "document '${target_document}' not accesible in mounted path '${mount_path}'"
+
+	# TODO fix bug
+	# the following execution from the command line at this path:
+	# /Users/erik/dev/_playground/zsh/globbing % wordstar dirln/foo/bar/
+	# results in:
+	# wordstar_document: \Users\erik\dev\_playground\zsh\globbing\dir\foo\bar
+	# mount_path: /Users/erik/dev/_playground/zsh/globbing/dir/foo/bar
+	# and in wordstar, it tries to open
+	# \\Users\\erik\\dev\\_playground\\zsh\\globbing\\dir\\foo\\bar
+
+
+print "wordstar_document: ${wordstar_document}"
+print "mount_path: ${mount_path}"
+exit
+
+	if ${WS_SETTINGS[shell_only]}
 	then
-		# add commands for debugging purposes
-		DOSBOX_ARGUMENTS+=(
-			-c "set WS_DOCUMENT=${ws_document}"
-			-c "mount ${DOCUMENT_DRIVE}"
+		WS_DOSBOX_ARGS+=(
+			-c "mount D:"
+			-c "set WS_DOCUMENT=${wordstar_document}"
 			-c "echo WS_DOCUMENT is set to %WS_DOCUMENT%"
 		)
 	else
-		# add commands: run WordStar with document then exit
-		DOSBOX_ARGUMENTS+=(
-			-c "$OPT_WORDSTAR_PRESET $OPT_WORDSTAR_OPTION ${ws_document}"
-			-c "EXIT"
+		WS_DOSBOX_ARGS+=(
+			-c "$WS_SETTINGS[wordstar_executable] $WS_WORDSTAR_ARGS ${wordstar_document}"
 		)
+			# -c "EXIT"
 	fi
 
-	"$DOSBOX_X_PATH" "${DOSBOX_ARGUMENTS[@]}" 2>$DEBUG_DESTINATION
+# echo $WS_DOSBOX_ARGS; exit
+
+	"${WS_SETTINGS[dosbox_path]}" "${WS_DOSBOX_ARGS[@]}"
 }
 
+
+# if target is in directory, or one of it's descendent directories
+# then print its relative path. Otherwise, print the target and return 1
+descendent(){ local target=$1 directory=$2
+	if [[ $target = $directory*  ]]
+	then
+		print "${target#$directory/}"
+	else
+		print $target
+		return 1
+	fi
+}
+
+validate_executable(){ local file=$1 name=${2:-file}
+	[[ -x $file ]] || die "cant execute ${name}: '$file'"
+}
+validate_file() { local file=$1 name=${2:-file}
+	[[ -r $file ]] || die "cant read ${name}: '$file'"
+}
+validate_dir(){ local dir=$1 name=${2:-directory}
+	[[ -d $dir ]] || die "cant find ${name}: '$dir'"
+}
 strip_doc_dir(){ local path="$1"
 	echo "${path#"${DOCUMENT_ROOT_PATH%/}/"}"
 }
@@ -276,9 +297,6 @@ reverse_slashes(){
 }
 
 find_ws_document(){ local path="$1"
-	info "path=${path}"
-	# check if the file exists, or if it exists when appending .WS extension
-	# it's done the hard way in case the filesystem is case sensitive
 	for ws_doc_path in "$path" "$path".[Ww][Ss](N)
 	do
 		if [[ -e "$ws_doc_path" ]]; then
@@ -286,21 +304,28 @@ find_ws_document(){ local path="$1"
 			return
 		fi
 	done
+}
+
+foo(){
 	if [[ "$path" = */ ]]
 	then
-		$OPT_CREATE_MISSING_PATHS && /bin/mkdir -p $path
+		$DOSBOX_MOUNT_MISSING_PATHS && /bin/mkdir -p $path
 		info "path="
 		ws_doc_path=""
 	else
-		$OPT_CREATE_MISSING_PATHS && /bin/mkdir -p $(/usr/bin/dirname $path)
+		$DOSBOX_MOUNT_MISSING_PATHS && /bin/mkdir -p $(/usr/bin/dirname $path)
 		ws_doc_path="${path%.[Ww][Ss]}.WS"
 	fi
 	echo_info "$ws_doc_path" "ws_doc_path="
 	# new document with WS extension
 }
 
+help(){
+	print_help
+	exit
+}
 version(){
-	/usr/bin/awk '/^#!/{next}/^#/{sub("^# *","");print;next}{exit}' "$0"
+	/usr/bin/awk '/^#!/{next}/^#/{sub("^# *","");print;next}{exit}' "$ZSH_ARGZERO"
 }
 
 info(){
@@ -314,6 +339,51 @@ die(){
 	echo "$1">&2
 	exit 77
 }
+help_opts(){ /usr/bin/awk '
+# help_opts v1.0 2024-08-17
 
+function initialize_option(){
+	OPTION_BUFFER=""
+	REQUIRED_ARGUMENT=0
+	OPTIONAL_ARGUMENT=0
+}
+function add_option(name,key,req_arg,opt_arg){
+	OPTIONS=OPTIONS" "name""(req_arg ? ":" : (opt_arg ? "::" : ""))(key?"="key:"")
+}
+function end_of_option(a,key,o){
+	split(OPTION_BUFFER,a," ")
+	key=a[1]
+	delete a[1]
+	add_option(key,"",REQUIRED_ARGUMENT,OPTIONAL_ARGUMENT)
+	for (o in a) add_option(a[o],key,REQUIRED_ARGUMENT,OPTIONAL_ARGUMENT)
+	initialize_option()
+}
+BEGIN{
+	FS="[\t, ]+"
+	initialize_option()
+	OPTIONS=""
+}
+/\s*[^-]/{
+	for ( f=1; f<=NF; f++)
+		if ($f=="")
+			continue
+		else if (match($f, /^--?[a-zA-Z0-9][a-zA-Z0-9_-]*$/))
+			OPTION_BUFFER=substr($f,2)" "OPTION_BUFFER
+		else if (match($f, /^<.*>$/))
+			REQUIRED_ARGUMENT=1
+		else if (match($f, /^\[<.*>\]$/))
+			OPTIONAL_ARGUMENT=1
+		else
+			end_of_option()
+}
+{
+	if (OPTION_BUFFER) end_of_option()
+}
+END {
+	print OPTIONS
+}
+
+'
+}
 main "$@"
 
