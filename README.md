@@ -101,26 +101,20 @@ One is with a _DOS_ utillity
 included in Robert J. Sawyer's _WordStar 7_ archive.
 I have yet to try it.
 
-### Customize the _BASH_ script
+### Customize the _zsh_ script
 
 #### Locations of things
 
-The first section of the script `WordStar/wordstar`
-specifies the locations of things;
-most depend on where you've put your `WordStar` folder:
+Near the head of the script,
+an associative array is defined
+that specifies various default settings.
+These are ones you might have to change:
 
-- `DOC_ROOT` specifies where
-  _WordStar_ documents will be kept.
-  I've defined mine as
-  `$HOME/Documents/WordStar`,
-  but anywhere will do.
-  Only files under this directory
-  will be reachable by _WordStar_.
-- `C_DRIVE` should point to
+- `c_mount_path` should point to
   `WordStar/DOS root`
-- `CONFIG` should be
+- `dosbox_config_path` should be
   `WordStar/dosbox-x.conf`
-- `DOSBOX_X` specifies the command to start _DOSBox-X_.
+- `dosbox_path` specifies the command to start _DOSBox-X_.
   If installed as an application, this should be
   `/Applications/dosbox-x.app/Contents/MacOS/dosbox-x`.
   If you've installed _DOSBox-X_ via _homebrew_ or something,
