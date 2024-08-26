@@ -12,9 +12,13 @@ trap exit ZERR
 # default options
 # all but `dosbox_path` can be modified with command-line options
 # don't use '~' in paths as it wont be expanded
+
+# [dosbox_path]="/opt/homebrew/bin/dosbox-x"
+
 typeset -A SETTINGS=(
 	[dosbox_path]="/Applications/dosbox-x.app/Contents/MacOS/dosbox-x"
-	[dosbox_config_path]="$HOME/Applications/WordStar/dosbox-x.conf"
+	[dosbox_config_path]="$HOME/Applications/WordStar/DOS root/WS/DOSBox-X/dosbox-x.conf"
+	[dosbox_mapper_path]="$HOME/Applications/WordStar/mapper-dosbox-x.map"
 	[c_mount_path]="$HOME/Applications/WordStar/DOS root"
 	[wordstar_executable]="WS"
 	[fullscreen]=false
@@ -25,10 +29,6 @@ typeset -A SETTINGS=(
 	[verbose]=false
 	[help_level]=4
 )
-
-typeset -A OPTIONS
-# what's left after the options are removed
-typeset -a ARGUMENTS
 
 typeset -a DOSBOX_ARGS=(
 	-fastlaunch
@@ -43,6 +43,8 @@ typeset -a DOSBOX_ARGS=(
 	-set 'ttf cols=96'
 )
 
+typeset -A OPTIONS
+typeset -a ARGUMENTS
 typeset -a WORDSTAR_ARGS
 
 help(){
@@ -85,7 +87,7 @@ help(){
             When creating a new document, create intermediate
             directories as required.
 
-    -m <DOCUMENT-ROOT>, --mount <DOCUMENT-ROOT>
+    -d <DOCUMENT-ROOT>, --documents <DOCUMENT-ROOT>
             Mount the specified path as the document root.
             Only files in this directory tree will be accessible by WordStar.
             With this option, if DOCUMENT is provided as a relative path,
@@ -98,11 +100,14 @@ help(){
     -c <PATH>, --conf <PATH>, --config <PATH>
             Specify a DOSBox-X config file file to use.
 
+	-m <PATH>, --mapper
+            Specify a DOSBox-X key-mapper file file to use.
+
     -x <PATH>, --dosbox <PATH>, --dosbox-x <PATH>
             Specify location DOSBox-x program to use.
             Default: '${SETTINGS[dosbox_path]}'.
 
-    -d, --dos, --shell
+    -s, --dos, --shell
             Don't launch WordStar, just launch DOSBox-X.
 
     -r <DOS-ROOT>, --root <DOS-ROOT>, --c-drive <DOS-ROOT>
@@ -170,9 +175,10 @@ launch_dosbox(){
 
 set_dosbox_arguments(){ local mount_path="$1"
 	DOSBOX_ARGS+=(
+		-conf "${SETTINGS[dosbox_config_path]}"
+		-set mapperfile="${SETTINGS[dosbox_mapper_path]}"
 		-c "@mount -q ${SETTINGS[mount_drive]%:}: \"${mount_path}\""
 		-c "@${SETTINGS[mount_drive]%:}:"
-		-conf "${SETTINGS[dosbox_config_path]}"
 		-c "@mount -q C: \"${SETTINGS[c_mount_path]}\""
 	)
 
@@ -202,13 +208,14 @@ function process_option(){ local key=$1 value=${2:-}
 	help) help; exit;;
 	version) version; exit;;
 	config) SETTINGS[dosbox_config_path]=$value;;
+	mapper) SETTINGS[dosbox_mapper_path]=$value;;
 	c-drive) SETTINGS[c_mount_path]=$value;;
 	shell) SETTINGS[shell_only]=true;;
 	verbose) SETTINGS[verbose]=true;;
 	fullscreen) SETTINGS[fullscreen]=true;;
 	window) SETTINGS[fullscreen]=false;;
 	paths) SETTINGS[create_missing_paths]=true ;;
-	mount) SETTINGS[documents_mount_path]="${value%/}/";;
+	documents) SETTINGS[documents_mount_path]="${value%/}/";;
 	preset) case $value in
 		pristine) SETTINGS[wordstar_executable]=PRISTINE;;
 		subdues) SETTINGS[wordstar_executable]=WSRJS;;
