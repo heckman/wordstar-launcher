@@ -22,7 +22,6 @@ typeset -A SETTINGS=(
 	[shell_only]=false
 	[documents_mount_path]=''
 	[mount_drive]='D:'
-	[dosbox_output]=/dev/null
 	[verbose]=false
 	[help_level]=4
 )
