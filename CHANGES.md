@@ -1,5 +1,9 @@
 # Change Log
 
+## Version 0.5.1
+
+- Bugfixes to `zsh` version.
+
 ## Version 0.5.0
 
 - Use `zsh` as the script's interpreter.
