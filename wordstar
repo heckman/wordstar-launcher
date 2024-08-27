@@ -3,11 +3,13 @@
 # copyright 2024 Erik Ben Heckman <erik@heckman.ca>
 # shared under the terms of the MIT license
 
-# wordstar: Launch WordStar in an emulated DOS environment on MacOS
 
-# if [[ $1 = --debug ]]; then set -x; shift; fi
+# wordstar launcher: Launch WordStar in an emulated DOS environment on MacOS
+
+
+if [[ $1 = --debug ]]; then set -x; shift; fi
 set -euo pipefail
-trap exit ZERR
+# trap exit ZERR
 
 # default options
 # all but `dosbox_path` can be modified with command-line options
@@ -43,7 +45,6 @@ typeset -a DOSBOX_ARGS=(
 	-set 'ttf cols=96'
 )
 
-typeset -A OPTIONS
 typeset -a ARGUMENTS
 typeset -a WORDSTAR_ARGS
 
@@ -80,7 +81,7 @@ help(){
     -f, --fullscreen
             Run WordStar in fullscreen mode.
 
-    -w, --window,
+    -w, --window
             Run WordStar in a window, i.e. not fullscreen. (Default.)
 
     -p, --paths
@@ -137,40 +138,84 @@ help(){
 "
 }
 
+print_env(){
+	set | grep -E "^(${(j:|:)@})=" >&2
+}
+
+print_globals(){
+	print_env SETTINGS ARGUMENTS DOSBOX_ARGS WORDSTAR_ARGS
+	# set | grep -E '^(SETTINGS|ARGUMENTS|DOSBOX_ARGS|WORDSTAR_ARGS)=' >&2
+}
+
+peek(){ printf "%s='%s'\n" $1 $2 >&2; }
 
 main(){
-	local mount_path wordstar_doc
+	local target mount_path wordstar_document
 
 	set_SETTINGS_and_ARGUMENTS "$@"
-	# printf "%s\n" "${ARGUMENTS[@]}"
+	validate_settings
 
-	mount_path="$(get_mount_path "${ARGUMENTS[1]:-.}")"
-	# printf "mount_path='%s'\n" "$mount_path" >&2
-	wordstar_doc="$(get_wordstar_document "$mount_path" "${ARGUMENTS[1]:-.}")"
-	wordstar_doc="$(validate_8.3_path "$wordstar_doc")"
+	target="${${ARGUMENTS[1]:-.}}"
+	mount_path="${$(resolve_mount_path "$target")}"
+	validate_mount_path $mount_path
+	validate_target $target $mount_path
 
+	# WordStar program will open document at this DOS path
+	wordstar_document="${$(resolve_wordstar_document "$target" "$mount_path"):-\\}"
+	validate_wordstar_document $wordstar_document
 
-	# printf "wordstar_doc='%s'\n" "$wordstar_doc" >&2
+	# use the SETTINGS global variable to set DOSBOX_ARGS and WORDSTAR_ARGS
+	set_wordstar_arguments "$wordstar_document"
+	set_dosbox_arguments "$mount_path" # uses WORDSTAR_ARGS
 
-	set_wordstar_arguments "$wordstar_doc"
-	set_dosbox_arguments "$mount_path"
+	# print_globals; exit
+
 	launch_dosbox
-
-	# print_globals
-	# exit
-
-}
-set_wordstar_arguments(){ local wordstar_doc="$1"
- 	WORDSTAR_ARGS+=( "/h${SETTINGS[help_level]}" "$wordstar_doc" )
 }
 
-launch_dosbox(){
-	if ${SETTINGS[verbose]}
-	then
-		"${SETTINGS[dosbox_path]}" "${DOSBOX_ARGS[@]}"
+validate_settings(){
+	(){ [[ -x $1 ]] || die_by NO_DOSBOX $1;} ${SETTINGS[dosbox_path]}
+	(){ [[ -r $1 ]] || die_by NO_CONFIG $1;} ${SETTINGS[dosbox_config_path]}
+	(){ [[ -d $1 ]] || die_by NO_C_MOUNT $1;} ${SETTINGS[c_mount_path]}
+}
+
+validate_mount_path(){ local dir=$1
+	[[ -d "$dir" ]] && return
+	${SETTINGS[create_missing_paths]} || die_by NO_DOC_MOUNT "$dir"
+	mkdir -p $dir > /dev/null || die_by NO_NEW_DOC_MOUNT $dir
+}
+
+validate_target(){ local target=${1:A} directory=${2:A}
+	[[ $target = $directory*  ]] || die_by NO_ACCESS "$target" "$directory"
+	[[ -d $target || -f $target || ! -e $target ]] ||
+		die_by BAD_TARGET_TYPE "$target"
+}
+
+validate_wordstar_document(){ local dos_path=$1
+	is_valid_8.3_path "$dos_path" || die_by BAD_DOS_NAME "$dos_path"
+}
+
+resolve_mount_path(){ local target=$1
+	if [[ -n ${SETTINGS[documents_mount_path]} ]]; then
+		printf "%s" ${SETTINGS[documents_mount_path]}
+	elif [[ -d $target ]]; then
+		printf "%s" ${target}
+	elif [[ -e $target ]]; then
+		printf "%s" ${target:h}
+	elif [[ "${target[-1]}" = "/" ]]; then
+		printf "%s" ${target}
 	else
-		"${SETTINGS[dosbox_path]}" "${DOSBOX_ARGS[@]}" &> /dev/null
+		printf "%s" ${target:h}
 	fi
+}
+
+resolve_wordstar_document(){ local target=${1:A} directory=${2:A}
+	reverse_forward_slashes <<<${target#$directory}
+}
+
+
+set_wordstar_arguments(){ local wordstar_document="$1"
+ 	WORDSTAR_ARGS+=( "/h${SETTINGS[help_level]}" "$wordstar_document" )
 }
 
 set_dosbox_arguments(){ local mount_path="$1"
@@ -201,7 +246,37 @@ set_dosbox_arguments(){ local mount_path="$1"
 	fi
 }
 
+launch_dosbox(){
+	if ${SETTINGS[verbose]}
+	then
+		"${SETTINGS[dosbox_path]}" "${DOSBOX_ARGS[@]}"
+	else
+		"${SETTINGS[dosbox_path]}" "${DOSBOX_ARGS[@]}" &> /dev/null
+	fi
+}
 
+
+die_by(){ cause=$1; shift
+	case $cause in
+	NO_DOSBOX) die "cant execute dosbox-x: '$1'." 3;;
+	NO_CONFIG) die "cant read config file: '$1'." 4;;
+	NO_C_MOUNT) die "cant find C: mount path: '$1'." 5;;
+	NO_DOC_MOUNT)
+		die "'$1' is not a directory, use the -p option to create it." 6;;
+	NO_NEW_DOC_MOUNT)
+		die "cannot create directory '$1' for document mount-point." 7;;
+	NO_ACCESS)
+		die "document '$1' not within mounted tree rooted at '$2'." 8;;
+	BAD_TARGET_TYPE)
+		die "target document '$1' exists and is not a file or directory." 9;;
+	BAD_DOS_NAME)
+		die "path to '$1' not in DOS 8.3 format" 10;;
+	INVALID_PARAMETER)
+		die "invalid $1: '$2'" 11;;
+	*)
+		die "unknown error: '$cause'" 2;;
+	esac
+}
 
 function process_option(){ local key=$1 value=${2:-}
 	case $key in
@@ -215,21 +290,25 @@ function process_option(){ local key=$1 value=${2:-}
 	fullscreen) SETTINGS[fullscreen]=true;;
 	window) SETTINGS[fullscreen]=false;;
 	paths) SETTINGS[create_missing_paths]=true ;;
-	documents) SETTINGS[documents_mount_path]="${value%/}/";;
+	documents) SETTINGS[documents_mount_path]="$value";;
 	preset) case $value in
 		pristine) SETTINGS[wordstar_executable]=PRISTINE;;
 		subdues) SETTINGS[wordstar_executable]=WSRJS;;
 		sawyer) SETTINGS[wordstar_executable]=SAWYER;;
-		*) die "invalid preset: $value";;
+		*) die_by INVALID_PARAMETER preset $value;;
 		esac;;
 	helplevel) case $value in
 		<0-4>) SETTINGS[help_level]=$value;;
-		*) die "invalid help level: $value";;
+		*) die_by INVALID_PARAMETER help-level $value;;
 		esac;;
 	dosbox-x) SETTINGS[dosbox_path]=$value;;
-	*) die "invalid option: $key";;
+	*) die_by INVALID_PARAMETER option $key;;
 	esac
 }
+
+
+## the functions that follow could moved to external libraries
+
 
 # parses command-line options and sets elements of global SETTINGS appropriately
 # leaves the remaining command-line arguments in global ARGUMENTS
@@ -241,116 +320,40 @@ set_SETTINGS_and_ARGUMENTS(){
 	#
 	# this workaround uses a temporary file... it's the only way I could find
 	# that avoided running `zparseopts` in a subshell
-	local zparsopts_errors=$(mktemp)
-	trap "if [[ -f $zparsopts_errors ]]; then rm $zparsopts_errors; fi" EXIT
+	local command_line_options
+	zparseopts_errors=$(mktemp)  zparseopts_errors=$(mktemp)
+	trap "if [[ -f $zparseopts_errors ]]; then rm $zparseopts_errors; fi" EXIT
 
 	# don't panic on error, we'll die later
-	zparseopts -F -M -D -A COMMAND_LINE_OPTIONS \
-		$(help | help_opts) 2> $zparsopts_errors || :
+	zparseopts -F -M -D -A command_line_options \
+		$(help | help_opts) 2> $zparseopts_errors || :
 
 	# die if errors were output
-	if [[ -s $zparsopts_errors ]]; then
-		die "$(cat $zparsopts_errors | sed 's/^[^ ]* //')"
+	if [[ -s $zparseopts_errors ]]; then
+		die "$(cat $zparseopts_errors | sed 's/^[^ ]* //')"
 	fi
 
 	# process each option
-	for k v in "${(@kv)COMMAND_LINE_OPTIONS}"
+	for k v in "${(@kv)command_line_options}"
 	do process_option ${k#--} $v
 	done
-
-	validate_settings
 
 	# save the rest of the command-line arguments
 	ARGUMENTS=("$@")
 }
 
-
-get_mount_path(){ local target="${1:-.}"
-	dirname_unless_slash_terminated \
-		"${SETTINGS[documents_mount_path]:-"$target"}" |
-			validate_mount_path
-}
-dirname_unless_slash_terminated(){
-	print ${${1/*/${1}_}:A:h}
-}
-
-validate_mount_path(){ local mount_path="$(cat -)"
-	if [[ ! -d "$mount_path" ]]
-	then
-		if ${SETTINGS[create_missing_paths]}
-		then
-			mkdir -p "$mount_path"
-		else
-			die "Directory '$mount_path' doesn't exist, use the -p option to create it."
-		fi
-	fi
-	printf "%s" "$mount_path"
-}
-
-validate_8.3_path(){ local path="${1}"
+is_valid_8.3_path(){ local path="${1}"
 	for segment in ${(s:\:)path}
-	do
-		if [[ -n $segment ]] && ! is_valid_8.3_filename "$segment"
-		then
-			printf "%s" "$path"
-			die "path not in 8.3 format: $path"
-		fi
+	do [[ -z $segment ]] ||
+		is_valid_8.3_path_segment "$segment" || return 1
 	done
-	# printf "8.3 path: '%s'\n" "$path" >&2
-	printf "%s" "$path"
 }
 
-is_valid_8.3_filename(){ local filename="$1"
+is_valid_8.3_path_segment(){ local filename=$1
 	/usr/bin/grep -qE '^[A-Za-z0-9!#$%&'"'"'()@^_`{}~-]{1,8}(\.[A-Za-z0-9!#$%&'"'"'()@^_`{}~-]{0,3})?$' <<<"$filename"
 }
 
-validate_settings(){
-	validate_executable ${SETTINGS[dosbox_path]} "dosbox-x"
-	validate_file ${SETTINGS[dosbox_config_path]} "config file"
-	[[ -d ${SETTINGS[c_mount_path]} ]] ||
-		die "cant find C: mount path: '${SETTINGS[c_mount_path]}'"
-
-}
-
-get_wordstar_document(){ local mount_path="${1}" target_document="${2}"
-	target_document="$(
-		descendent "${target_document:A}" "${mount_path}" |
-			reverse_slashes
-	)" || die "document '${target_document}' not accesible in mounted path '${mount_path}'"
-	printf "%s" "$target_document"
-}
-
-
-
-# if target is in directory, or one of it's descendent directories
-# then print its relative path. Otherwise, print the target and return 1
-descendent(){ local target=$1 directory=$2
-	# printf "target=%s\n" "$target" >&2
-	# printf "directory=%s\n" "$directory" >&2
-	if [[ "${target}" = "${directory%/}"*  ]]
-	then
-		# printf "\ntarget=%s\n" "$target" >&2
-		# printf "directory=%s\n\n" "$directory" >&2
-		printf "%s" "${target#$directory}"
-	else
-		printf "%s" "$target"
-		return 1
-	fi
-}
-
-validate_executable(){ local file=$1 name=${2:-file}
-	[[ -x $file ]] || die "cant execute ${name}: '$file'"
-}
-
-validate_file() { local file=$1 name=${2:-file}
-	[[ -r $file ]] || die "cant read ${name}: '$file'"
-}
-
-validate_dir(){ local dir=$1 name=${2:-directory}
-	[[ -d $dir ]] || die "cant find ${name}: '$dir'"
-}
-
-reverse_slashes(){
+reverse_forward_slashes(){
 	sed 's|//*|\\|g'
 }
 
@@ -358,14 +361,9 @@ version(){
 	/usr/bin/awk '/^#!/{next}/^#/{sub("^# *","");print;next}{exit}' "$ZSH_ARGZERO"
 }
 
-# relies on `set -e` to exit on error
 die(){
 	printf "%s\n" "$1">&2
-	exit 77
-}
-
-print_globals(){
-	set | grep -E '^(SETTINGS|COMMAND_LINE_OPTIONS|ARGS|DOSBOX_ARGS|WORDSTAR_ARGS)='
+	exit "${2:-1}"
 }
 
 help_opts(){ /usr/bin/awk '
