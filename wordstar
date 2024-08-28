@@ -160,57 +160,30 @@ print_globals(){
 
 peek(){ printf "%s='%s'\n" $1 $2 >&2; }
 
-error_no(){ local code=$1
-	[[ $# -lt 2 ]] || shift && print -r ${(pj:\0:)@}
-	return $code
-}
-
-error(){ local code=$?
-	[[ $# -lt 1 ]] || print -r ${(pj:\0:)@}
-	return $code
-}
-
 main(){
+	local argument target mount_path wordstar_document
 
-	local output_buffer
-	# only non-error output is ever printed is help and version information
+	set_OPTIONS_and_ARGUMENTS "$@"
+	set_SETTINGS
 
-	# todo : try and rework this error reporting using redirection
-	# something like main > >(do stdout stuff) 2> >(do stderr stuff))
-	# or do that in the problem areas, like parsing options,
-	# that was what led us here afterall.
+	argument=${ARGUMENTS[1]:-.}
 
-	# if anonymous function returns non-0, stdout will be
-	# interpreted as null-delimited error arguments
-	output_buffer="$((){
-		local argument target mount_path wordstar_document
+	doc_mount=$(get_doc_mount "$argument") || invalid "$doc_mount" # uses SETTINGS
+	target=$(get_target $argument $doc_mount ) || invalid "$target" "$doc_mount"
+	ws_doc=$(get_ws_doc $doc_mount $target) || invalid "$ws_doc"
 
-		set_OPTIONS_and_ARGUMENTS "$@"
-		set_SETTINGS
+	set_WORDSTAR_ARGS "$ws_doc" # uses SETTINGS
 
-		argument=${ARGUMENTS[1]:-.}
+	set_DOSBOX_ARGS "$doc_mount" # uses WORDSTAR_ARGS and SETTINGS
 
-		doc_mount=$(get_doc_mount "$argument") || error "$doc_mount" # uses SETTINGS
-		target=$(get_target $argument $doc_mount ) || error "$target" "$doc_mount"
-		ws_doc=$(get_ws_doc $doc_mount $target) || error "$ws_doc"
+	# print_globals; exit
 
-		set_WORDSTAR_ARGS "$ws_doc" # uses SETTINGS
-
-		set_DOSBOX_ARGS "$doc_mount" # uses WORDSTAR_ARGS and SETTINGS
-
-		# print_globals; exit
-
-		launch_dosbox
-	} "$@")" || die_by "${(0)output_buffer}"
-	print -r "${(N)${(0)output_buffer}}"
+	launch_dosbox
 }
 
 set_OPTIONS_and_ARGUMENTS(){
-	# todo
-	# inseatead of 2>&1, to 2> >(die ERR_BAD_OPTIONS "$(cat -)")
-
-	zparseopts -F -M -D -A OPTIONS $(help | help_opts) 2>&1 ||
-		return $ERR_BAD_OPTIONS
+	zparseopts -F -M -D -A OPTIONS $(help | help_opts) \
+		2> >(sed -e 's/^[^ ]* //') || exit $ERR_BAD_OPTIONS
 	ARGUMENTS=("$@")
 }
 
@@ -226,9 +199,8 @@ set_SETTINGS(){
 }
 
 check_path(){ check=$1 target=$2 error=$3
-	[[ -z $target ]] || test $check $target || error_no $error "$target"
+	[[ -z $target ]] || test $check $target || die_by $error "$target"
 }
-
 
 get_doc_mount(){ local arg=$1 doc_mount
 
@@ -311,10 +283,13 @@ launch_dosbox(){
 	fi
 }
 
-die_by(){
-	case $? in
-	$ERR_BAD_OPTIONS)
-		die "${1#* }";;
+
+invalid(){
+	error $? "$@"
+}
+
+die_by(){ local error_code=$1; shift #...error message arguments
+	case $error_code in
 	$ERR_NO_DOSBOX)
 		die "cant execute dosbox-x: '$1'";;
 	$ERR_NO_CONFIG)
@@ -334,6 +309,7 @@ die_by(){
 	$ERR_INVALID_PARAMETER)
 		die "invalid $1: '$2'";;
 	0)
+		echo 0
 		die "$@";;
 	*)
 		die "unknown error '$?' with arguments '$*' ";;
@@ -357,14 +333,14 @@ function process_option(){ local key=$1 value=${2:-}
 		pristine) SETTINGS[wordstar_executable]=PRISTINE;;
 		subdues) SETTINGS[wordstar_executable]=WSRJS;;
 		sawyer) SETTINGS[wordstar_executable]=SAWYER;;
-		*) error_no ERR_INVALID_PARAMETER preset $value;;
+		*) die_by ERR_INVALID_PARAMETER preset $value;;
 		esac;;
 	helplevel) case $value in
 		<0-4>) SETTINGS[help_level]=$value;;
-		*) error_no ERR_INVALID_PARAMETER help-level $value;;
+		*) die_by ERR_INVALID_PARAMETER help-level $value;;
 		esac;;
 	dosbox-x) SETTINGS[dosbox_path]=$value;;
-	*) error_no ERR_INVALID_PARAMETER option $key;;
+	*) die_by ERR_INVALID_PARAMETER option $key;;
 	esac
 }
 
