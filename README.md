@@ -6,7 +6,7 @@ on _macOS_.
 
 It works with a _WordStar 7_ archive
 that was put together by science-fiction writer Robert J. Sawyer.
-It can be downloaded from [his blog](https://sfwriter.com/blog/?p=5806).
+His archive can be downloaded from [his blog](https://sfwriter.com/blog/?p=5806).
 
 ## Warnings
 
