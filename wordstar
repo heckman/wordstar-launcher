@@ -62,8 +62,10 @@ typeset -a WORDSTAR_ARGS
 help(){
 	echo "USAGE: wordstar [OPTIONS] [--] [DOCUMENT]
 
-    Launches WordStar in an emulated DOS environment
+    Launches WordStar in an emulated DOS environment provided by DOSBox-X
     using Robert J. Sawyer's WordStar archive: https://sfwriter.com/ws7.htm
+
+	Both BOSBox-X and Robert J. Sawyer's Archive are required.
 
     If DOCUMENT doesn't exist, a new document will be opened in WordStar.
     It's name will be appended with .WS if it doesn't already have that
@@ -77,9 +79,9 @@ help(){
                 subdued    R.J. Sawyer's custom less-harsh colour scheme
                 sawyer     R.J. Sawyer's preferred layout and extensive
                            customizations. Default help level is 2.
-            For descriptions of the presets, see the following
-            file in Robert J. Sawyer's WordStar archive:
-            '${SETTINGS[c_mount_path]%/}/WS/VERSIONS.TXT'
+            For descriptions of the presets, see '/WS/VERSIONS.TXT'
+            in Robert J. Sawyer's WordStar archive.
+
 
     -H <HELP-LEVEL>, --helplevel <HELP-LEVEL>
             Start WordStar with onethe specified help level:
@@ -232,12 +234,12 @@ get_target(){ local target=${1:A} directory=${2:A}
 
 
 get_ws_doc(){ local directory=$1 target=$2 segments segment
-	segments=${(s:/:)target#$directory}
+	segments=( ${(s:/:)target#$directory} )
 	printf '\\%s' "${segments[@]}"
 	# validation
 	for segment in $segments
 	do
-		is_valid_dos_name || return $BAD_DOS_NAME
+		is_valid_dos_name $segment || return $ERR_BAD_DOS_NAME
 	done
 }
 
@@ -285,7 +287,7 @@ launch_dosbox(){
 
 
 invalid(){
-	error $? "$@"
+	die_by $? "$@"
 }
 
 die_by(){ local error_code=$1; shift #...error message arguments
