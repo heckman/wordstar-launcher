@@ -185,7 +185,7 @@ main(){
 
 set_OPTIONS_and_ARGUMENTS(){
 	zparseopts -F -M -D -A OPTIONS $(help | help_opts) \
-		2> >(sed -e 's/^[^ ]* //') || exit $ERR_BAD_OPTIONS
+		2> >(sed -e 's/^[^ ]* //' >&2) || exit $ERR_BAD_OPTIONS
 	ARGUMENTS=("$@")
 }
 
@@ -359,6 +359,7 @@ die(){ local message=$1 code=${2:-$?}
 	exit $code
 }
 
+# generate zparseopt string from help string
 help_opts(){ /usr/bin/awk '
 # help_opts v1.0 2024-08-17
 
